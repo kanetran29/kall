@@ -11,6 +11,7 @@ import (
 
 func newRootCmd() *cobra.Command {
 	var verbose bool
+	var interactive bool
 
 	cmd := &cobra.Command{
 		Use:   "kall [command] [args...]",
@@ -24,11 +25,15 @@ Usage:
   kall alias <project> <name> <cmd>  → Set a command alias
   kall aliases                       → List all aliases
   kall <command> [args]              → Run across all projects
+  kall -i <command>                  → Run with interactive tab view
+  kall -V <command>                  → Run with verbose output
   kall completion <shell>            → Generate shell completions
 
 Options:
-  --help, -h        Show this help
-  --version, -v     Show version
+  -i, --interactive   Interactive tab view (← → to switch)
+  -V, --verbose       Show resolved commands
+  -h, --help          Show this help
+  -v, --version       Show version
 
 Aliases map a name to different commands per project:
   kall alias frontend start "yarn start"
@@ -58,7 +63,7 @@ Aliases map a name to different commands per project:
 			}
 
 			results := RunParallel(root, cfg, args)
-			RenderResults(results, verbose)
+			RenderResults(results, verbose, interactive)
 
 			for _, r := range results {
 				if r.ExitCode != 0 {
@@ -70,6 +75,7 @@ Aliases map a name to different commands per project:
 	}
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "V", false, "Show commands being executed")
+	cmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Interactive tab view (← → to switch)")
 
 	cmd.SetHelpTemplate(`{{.Long}}
 `)

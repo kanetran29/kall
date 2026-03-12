@@ -34,15 +34,17 @@ func termWidth() int {
 }
 
 // RenderResults displays results as interactive tabs (TTY) or sequential output (pipe).
-func RenderResults(results []Result, verbose bool) {
+func RenderResults(results []Result, verbose bool, interactive bool) {
 	if len(results) == 0 {
 		return
 	}
 
-	if term.IsTerminal(int(os.Stdout.Fd())) {
+	width := termWidth()
+
+	if interactive && term.IsTerminal(int(os.Stdout.Fd())) {
 		renderTabs(results, verbose)
 	} else {
-		renderToWriter(os.Stdout, results, 80, verbose)
+		renderToWriter(os.Stdout, results, width, verbose)
 	}
 }
 
