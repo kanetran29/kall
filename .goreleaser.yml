@@ -34,7 +34,8 @@ archives:
       - README.md
 
 brews:
-  - repository:
+  - directory: Formula
+    repository:
       owner: kanetran29
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
