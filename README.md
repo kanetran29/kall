@@ -3,16 +3,14 @@
 Run commands across multiple projects in parallel, with per-project aliases.
 
 ```
-┌──────────────────────────────────────────┐
-│ frontend ✓                               │
-│──────────────────────────────────────────│
-│ Compiled successfully.                   │
-├──────────────────────────────────────────┤
-│ backend ✓                                │
-│──────────────────────────────────────────│
-│ * Running on http://127.0.0.1:5000       │
-└──────────────────────────────────────────┘
+ ▸ frontend ✓ │ backend ✓ │ mobile ✗
+──────────────────────────────────────────────
+ Compiled successfully.
+
+ ← → switch · q quit
 ```
+
+Output is shown in an interactive tab UI — use arrow keys to switch between projects.
 
 ## Install
 
@@ -23,29 +21,14 @@ brew tap kanetran29/tap
 brew install kall
 ```
 
-### Debian / Ubuntu
-
-Download the `.deb` from [Releases](https://github.com/kanetran29/kall/releases):
-
-```bash
-sudo dpkg -i kall_*.deb
-```
-
-### Windows
-
-Download the `.zip` from [Releases](https://github.com/kanetran29/kall/releases) and add to your PATH. Or use scoop:
-
-```powershell
-# manual download from GitHub Releases
-```
-
 ### From source
+
+Requires [Go 1.22+](https://go.dev/dl/).
 
 ```bash
 git clone https://github.com/kanetran29/kall.git
 cd kall
-make install          # installs to /usr/local by default
-# make PREFIX=~/.local install   # or a custom prefix
+make install
 ```
 
 ## Quick start
@@ -55,7 +38,7 @@ cd ~/workspace        # parent directory of your projects
 
 kall init             # interactive picker — select which projects to manage
 kall ls               # run 'ls' in every project
-kall git status       # git works too, just spell it out
+kall git status       # run any command across all projects
 ```
 
 ## Aliases
@@ -70,45 +53,51 @@ kall start            # runs the right command in each project
 kall start --port 3000   # extra args are appended
 ```
 
+Use `-V` to see what actually runs in each project:
+
+```bash
+kall -V start
+# frontend → $ yarn start
+# backend  → $ flask run
+```
+
 ## Configuration
 
 `kall init` creates a `.kall` file in the current directory. The format is INI-style:
 
 ```ini
-# Frontend app
 [frontend]
 start = yarn start
 test = yarn test
-build = yarn build
 
-# Backend API
 [backend]
 start = flask run
 test = pytest
-build = docker build -t api .
 ```
 
 - Section headers (`[name]`) are project directory names
 - Key-value pairs are command aliases
 - Lines starting with `#` are comments
 
-kall finds `.kall` by walking up from the working directory (like `.git`), so you can run kall from any subdirectory within the workspace.
+kall finds `.kall` by walking up from the working directory (like `.git`), so you can run it from any subdirectory.
 
 ## Commands
 
-| Command | Description |
-|---|---|
-| `kall init` | Scan for git repos, interactively select projects |
-| `kall config` | Re-select projects (preserves existing aliases) |
-| `kall list` | List configured projects |
-| `kall alias <project> <name> <cmd>` | Set a per-project command alias |
-| `kall aliases` | Show all configured aliases |
-| `kall <command> [args]` | Run across all projects in parallel |
-| `kall completion <shell>` | Generate shell completions (bash/zsh/fish/powershell) |
-| `kall --help` | Show help |
-| `kall --version` | Show version |
+```
+kall init                          → Scan and select projects
+kall config                        → Re-select projects
+kall list                          → List configured projects
+kall alias <project> <name> <cmd>  → Set a command alias
+kall aliases                       → List all aliases
+kall <command> [args]              → Run across all projects
+kall completion <shell>            → Generate shell completions
+kall -V <command>                  → Run with verbose (show resolved commands)
+kall --version                     → Show version
+```
 
 ## Shell completions
+
+Homebrew installs completions automatically. For manual setup:
 
 ```bash
 # Bash
@@ -121,23 +110,23 @@ kall completion zsh > "${fpath[1]}/_kall"
 kall completion fish > ~/.config/fish/completions/kall.fish
 
 # PowerShell
-kall completion powershell > kall.ps1
+kall completion powershell | Out-File kall.ps1
 ```
 
 ## How it works
 
-1. Commands run in parallel — one goroutine per project
-2. Output is collected and displayed in a stacked box TUI
-3. Exit codes propagate: green **✓** on success, red **✗** on failure
-4. Failed command output is highlighted in red
-5. If the command name matches an alias, it's resolved per-project; otherwise the literal command runs
+1. Commands run in parallel across all configured projects
+2. Results are displayed in an interactive tab UI — use **← →** to switch between projects
+3. Exit codes propagate: **✓** on success, **✗** on failure
+4. If a command name matches an alias, it's resolved per-project
+5. When piped (e.g. `kall git status | cat`), output falls back to plain sequential text
 
 ## Uninstall
 
 ```bash
-brew uninstall kall          # Homebrew
-sudo dpkg -r kall            # Debian/Ubuntu
-make uninstall               # from source
+brew uninstall kall
+# or
+make uninstall
 ```
 
 ## License
