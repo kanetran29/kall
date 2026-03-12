@@ -1,0 +1,128 @@
+.TH KALL 1 "2026-03-12" "kall 1.0.0" "User Commands"
+.SH NAME
+kall \- run commands across multiple projects in parallel
+.SH SYNOPSIS
+.B kall
+.RI [ command ]
+.RI [ args... ]
+.br
+.B kall
+.BR init | config
+.br
+.B kall alias
+.I project name command
+.SH DESCRIPTION
+.B kall
+runs a command in parallel across multiple projects and displays the
+output in a stacked box TUI. It supports per-project command aliases,
+so the same command name can map to different commands in each project.
+.PP
+kall looks for a
+.B .kall
+configuration file by walking up from the current directory, similar
+to how
+.BR git (1)
+finds
+.BR .git .
+The directory containing
+.B .kall
+is the workspace root; projects are its subdirectories.
+.SH COMMANDS
+.TP
+.B init
+Scan for git repositories in the current directory and interactively
+select which ones to manage. Creates a
+.B .kall
+file in the current directory.
+.TP
+.B config
+Re-run the interactive project picker. Existing aliases are preserved
+for projects that remain selected.
+.TP
+.B list
+Print the names of all configured projects.
+.TP
+.B alias \fIproject\fR \fIname\fR \fIcommand\fR
+Set a command alias for a project. When
+.B kall \fIname\fR
+is run, this project will execute
+.I command
+instead.
+.TP
+.B aliases
+List all configured aliases, grouped by project.
+.TP
+.I command \fR[\fIargs...\fR]
+Any other argument is treated as a command to run in each project
+directory in parallel. If the command name matches a per-project alias,
+the alias is resolved. Extra arguments are appended.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Show usage information.
+.TP
+.BR \-v ", " \-\-version
+Print version number.
+.SH CONFIGURATION
+The
+.B .kall
+file uses an INI-style format. Section headers name the projects
+(subdirectories), and key-value pairs define aliases.
+.PP
+.nf
+# Frontend app
+[frontend]
+start = yarn start
+test = yarn test
+
+# Backend API
+[backend]
+start = flask run
+test = pytest
+.fi
+.PP
+Lines starting with
+.B #
+are comments. Blank lines are ignored.
+.SH EXAMPLES
+Initialize a workspace:
+.PP
+.nf
+$ cd ~/workspace
+$ kall init
+.fi
+.PP
+Run a command across all projects:
+.PP
+.nf
+$ kall git status
+$ kall ls -la
+.fi
+.PP
+Set up and use aliases:
+.PP
+.nf
+$ kall alias frontend start "yarn start"
+$ kall alias backend start "flask run"
+$ kall start
+.fi
+.SH EXIT STATUS
+.B kall
+exits 0 if all project commands succeed, or 1 if any command fails.
+The TUI display shows a green
+.B \[u2713]
+for success and a red
+.B \[u2717]
+for failure next to each project name.
+.SH FILES
+.TP
+.B .kall
+Workspace configuration file (INI format). Discovered by walking up
+from the current directory.
+.SH SEE ALSO
+.BR git (1),
+.BR make (1)
+.SH AUTHORS
+Kane Tran
+.UR https://github.com/kanetran29/kall
+.UE

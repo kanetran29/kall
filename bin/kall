@@ -1,6 +1,21 @@
-#!/bin/bash
-SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-CONFIG="$SCRIPT_DIR/.kall"
+#!/usr/bin/env bash
+#
+# kall — run commands across multiple projects in parallel
+# https://github.com/kanetran29/kall
+#
+
+VERSION="1.0.0"
+
+# --- workspace root discovery ---
+# Walk up from $PWD to find the directory containing .kall
+find_root() {
+  local dir="$PWD"
+  while [ "$dir" != "/" ]; do
+    [ -f "$dir/.kall" ] && echo "$dir" && return 0
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
 
 # --- alias storage (parallel arrays for bash 3.x compat) ---
 alias_keys=()
@@ -9,18 +24,12 @@ repos=()
 
 lookup_alias() {
   for i in "${!alias_keys[@]}"; do
-    if [ "${alias_keys[$i]}" = "$1" ]; then
-      echo "${alias_vals[$i]}"
-      return 0
-    fi
+    [ "${alias_keys[$i]}" = "$1" ] && echo "${alias_vals[$i]}" && return 0
   done
   return 1
 }
 
 # --- parse .kall config (INI-style) ---
-#   [project-name]
-#   start = yarn start
-#   test = yarn test
 parse_config() {
   repos=()
   alias_keys=()
@@ -34,7 +43,6 @@ parse_config() {
       repos+=("$current")
     elif [[ -n "$current" && "$line" =~ ^([^=]+)=(.+)$ ]]; then
       local key="${BASH_REMATCH[1]}" val="${BASH_REMATCH[2]}"
-      # trim whitespace
       key="${key#"${key%%[![:space:]]*}"}" ; key="${key%"${key##*[![:space:]]}"}"
       val="${val#"${val%%[![:space:]]*}"}" ; val="${val%"${val##*[![:space:]]}"}"
       alias_keys+=("$current:$key")
@@ -45,15 +53,15 @@ parse_config() {
 
 # --- interactive project picker ---
 pick_repos() {
-  parse_config  # preserve existing aliases
+  parse_config
 
   local all_repos=()
-  for dir in "$SCRIPT_DIR"/*/; do
+  for dir in "$ROOT"/*/; do
     [ -d "$dir/.git" ] && all_repos+=("$(basename "$dir")")
   done
 
   if [ ${#all_repos[@]} -eq 0 ]; then
-    echo "No repos found in $SCRIPT_DIR"
+    echo "No git repos found in $ROOT"
     exit 1
   fi
 
@@ -123,7 +131,6 @@ pick_repos() {
   for i in "${!all_repos[@]}"; do
     if [ "${selected[$i]}" -eq 1 ]; then
       echo "[${all_repos[$i]}]" >> "$CONFIG"
-      # preserve existing aliases for this project
       for j in "${!alias_keys[@]}"; do
         if [[ "${alias_keys[$j]}" == "${all_repos[$i]}:"* ]]; then
           local aname="${alias_keys[$j]#*:}"
@@ -167,7 +174,6 @@ set_alias() {
 
   while IFS= read -r line || [[ -n "$line" ]]; do
     if [[ "$line" =~ ^\[(.+)\]$ ]]; then
-      # leaving target section without writing alias — insert before next section
       if [ "$in_section" -eq 1 ] && [ "$alias_set" -eq 0 ]; then
         echo "$name = $cmd" >> "$tmpfile"
       fi
@@ -189,7 +195,6 @@ set_alias() {
     fi
   done < "$CONFIG"
 
-  # still in target section at EOF
   if [ "$in_section" -eq 1 ] && [ "$alias_set" -eq 0 ]; then
     echo "$name = $cmd" >> "$tmpfile"
   fi
@@ -199,42 +204,53 @@ set_alias() {
 }
 
 # --- commands ---
-case "$1" in
+case "${1:-}" in
   --version|-v)
-    echo "kall 1.0.0"
+    echo "kall $VERSION"
     exit 0
     ;;
   --help|-h|"")
-    echo "kall — run commands across multiple projects"
-    echo
-    echo "Usage:"
-    echo "  kall init                          Scan and select projects"
-    echo "  kall config                        Re-select projects"
-    echo "  kall list                          List configured projects"
-    echo "  kall alias <project> <name> <cmd>  Set a command alias"
-    echo "  kall aliases                       List all aliases"
-    echo "  kall <command> [args]              Run across all projects"
-    echo
-    echo "Options:"
-    echo "  --help, -h        Show this help"
-    echo "  --version, -v     Show version"
-    echo
-    echo "Aliases map a name to different commands per project:"
-    echo "  kall alias frontend start \"yarn start\""
-    echo "  kall alias backend start \"flask run\""
-    echo "  kall start   # runs the right command in each project"
+    cat <<'HELP'
+kall — run commands across multiple projects in parallel
+
+Usage:
+  kall init                          Scan and select projects
+  kall config                        Re-select projects
+  kall list                          List configured projects
+  kall alias <project> <name> <cmd>  Set a command alias
+  kall aliases                       List all aliases
+  kall <command> [args]              Run across all projects
+
+Options:
+  --help, -h        Show this help
+  --version, -v     Show version
+
+Aliases map a name to different commands per project:
+  kall alias frontend start "yarn start"
+  kall alias backend start "flask run"
+  kall start   # runs the right command in each project
+
+Config format (.kall):
+  [frontend]
+  start = yarn start
+  test = yarn test
+
+  [backend]
+  start = flask run
+  test = pytest
+HELP
     exit 0
     ;;
   init|config)
+    ROOT="$(find_root 2>/dev/null)" || ROOT="$PWD"
+    CONFIG="$ROOT/.kall"
     pick_repos
     exit 0
     ;;
   list)
+    ROOT="$(find_root)" || { echo "No .kall config found. Run 'kall init' first."; exit 1; }
+    CONFIG="$ROOT/.kall"
     parse_config
-    if [ ${#repos[@]} -eq 0 ]; then
-      echo "No .kall config found. Run 'kall init' first."
-      exit 1
-    fi
     for r in "${repos[@]}"; do
       echo "$r"
     done
@@ -245,10 +261,14 @@ case "$1" in
       echo "Usage: kall alias <project> <name> <command>"
       exit 1
     fi
+    ROOT="$(find_root)" || { echo "No .kall config found. Run 'kall init' first."; exit 1; }
+    CONFIG="$ROOT/.kall"
     set_alias "$2" "$3" "${@:4}"
     exit 0
     ;;
   aliases)
+    ROOT="$(find_root)" || { echo "No .kall config found. Run 'kall init' first."; exit 1; }
+    CONFIG="$ROOT/.kall"
     parse_config
     if [ ${#alias_keys[@]} -eq 0 ]; then
       echo "No aliases configured."
@@ -270,10 +290,12 @@ case "$1" in
 esac
 
 # --- run command across projects ---
+ROOT="$(find_root)" || { echo "No .kall config found. Run 'kall init' first."; exit 1; }
+CONFIG="$ROOT/.kall"
 parse_config
 
 if [ ${#repos[@]} -eq 0 ]; then
-  echo "No .kall config found. Run 'kall init' first."
+  echo "No projects in .kall config. Run 'kall init' first."
   exit 1
 fi
 
@@ -285,9 +307,9 @@ for repo in "${repos[@]}"; do
   resolved=$(lookup_alias "$repo:$1")
   if [ $? -eq 0 ]; then
     read -ra alias_parts <<< "$resolved"
-    (cd "$SCRIPT_DIR/$repo" && "${alias_parts[@]}" "${@:2}") > "$tmpdir/$repo.out" 2>&1 &
+    (cd "$ROOT/$repo" && "${alias_parts[@]}" "${@:2}") > "$tmpdir/$repo.out" 2>&1 &
   else
-    (cd "$SCRIPT_DIR/$repo" && "$@") > "$tmpdir/$repo.out" 2>&1 &
+    (cd "$ROOT/$repo" && "$@") > "$tmpdir/$repo.out" 2>&1 &
   fi
   pids+=($!)
 done
@@ -318,7 +340,6 @@ for i in "${!repos[@]}"; do
     printf "${dim}├%s┤${reset}\n" "$hr_line"
   fi
 
-  # header with exit indicator
   if [ "${codes[$i]}" -eq 0 ]; then
     indicator="✓"
     indicator_color="$green"
@@ -332,7 +353,6 @@ for i in "${!repos[@]}"; do
 
   printf "${dim}│%s│${reset}\n" "$hr_line"
 
-  # body (red if command failed)
   err_color=""
   [ "${codes[$i]}" -ne 0 ] && err_color="$red"
   while IFS= read -r line; do
@@ -348,7 +368,6 @@ done
 
 printf "${dim}└%s┘${reset}\n" "$hr_line"
 
-# --- exit with failure if any command failed ---
 any_failed=0
 for code in "${codes[@]}"; do
   [ "$code" -ne 0 ] && any_failed=1

@@ -2,12 +2,13 @@
 jaakkocom/
 jaakkocom-frontend/
 
-# Config (user-specific)
+# User config
 .kall
 .gall
 
-# Old version
+# Old versions
 gall.sh
+kall.sh
 
 # System
 .DS_Store
