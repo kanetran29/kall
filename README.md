@@ -4,13 +4,9 @@
 
 <p align="center">Run commands across multiple projects in parallel, with per-project aliases.</p>
 
-```
- ▸ FE ✓ │ BE ○
-──────────────────────────────────────────────
- Compiled successfully.
-
- ← → switch · x kill · 1/2 done
-```
+<p align="center">
+  <img src="assets/kall-tui.png" width="600" alt="kall tab UI">
+</p>
 
 Output streams live into an interactive tab UI — use arrow keys to switch, `r` to rerun, `x` to kill.
 
