@@ -16,11 +16,27 @@ Run commands across multiple projects in parallel, with per-project aliases.
 
 ## Install
 
-### Homebrew
+### Homebrew (macOS and Linux)
 
 ```bash
 brew tap kanetran29/tap
 brew install kall
+```
+
+### Debian / Ubuntu
+
+Download the `.deb` from [Releases](https://github.com/kanetran29/kall/releases):
+
+```bash
+sudo dpkg -i kall_*.deb
+```
+
+### Windows
+
+Download the `.zip` from [Releases](https://github.com/kanetran29/kall/releases) and add to your PATH. Or use scoop:
+
+```powershell
+# manual download from GitHub Releases
 ```
 
 ### From source
@@ -30,16 +46,6 @@ git clone https://github.com/kanetran29/kall.git
 cd kall
 make install          # installs to /usr/local by default
 # make PREFIX=~/.local install   # or a custom prefix
-```
-
-### Manual
-
-Copy the script and optionally the completions:
-
-```bash
-cp bin/kall /usr/local/bin/
-cp completions/kall.bash /usr/local/share/bash-completion/completions/kall
-cp completions/_kall /usr/local/share/zsh/site-functions/
 ```
 
 ## Quick start
@@ -98,12 +104,29 @@ kall finds `.kall` by walking up from the working directory (like `.git`), so yo
 | `kall alias <project> <name> <cmd>` | Set a per-project command alias |
 | `kall aliases` | Show all configured aliases |
 | `kall <command> [args]` | Run across all projects in parallel |
+| `kall completion <shell>` | Generate shell completions (bash/zsh/fish/powershell) |
 | `kall --help` | Show help |
 | `kall --version` | Show version |
 
+## Shell completions
+
+```bash
+# Bash
+kall completion bash > /usr/local/share/bash-completion/completions/kall
+
+# Zsh
+kall completion zsh > "${fpath[1]}/_kall"
+
+# Fish
+kall completion fish > ~/.config/fish/completions/kall.fish
+
+# PowerShell
+kall completion powershell > kall.ps1
+```
+
 ## How it works
 
-1. Commands run in parallel — one background process per project
+1. Commands run in parallel — one goroutine per project
 2. Output is collected and displayed in a stacked box TUI
 3. Exit codes propagate: green **✓** on success, red **✗** on failure
 4. Failed command output is highlighted in red
@@ -113,7 +136,7 @@ kall finds `.kall` by walking up from the working directory (like `.git`), so yo
 
 ```bash
 brew uninstall kall          # Homebrew
-# or
+sudo dpkg -r kall            # Debian/Ubuntu
 make uninstall               # from source
 ```
 

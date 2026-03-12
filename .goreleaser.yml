@@ -1,0 +1,83 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+    - mkdir -p completions
+    - sh -c "go run ./cmd/kall completion bash > completions/kall.bash"
+    - sh -c "go run ./cmd/kall completion zsh > completions/_kall"
+    - sh -c "go run ./cmd/kall completion fish > completions/kall.fish"
+
+builds:
+  - main: ./cmd/kall
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - man/kall.1
+      - completions/*
+      - LICENSE
+      - README.md
+
+brews:
+  - repository:
+      owner: kanetran29
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: "https://github.com/kanetran29/kall"
+    description: "Run commands across multiple projects in parallel"
+    license: "MIT"
+    install: |
+      bin.install "kall"
+      man1.install "man/kall.1"
+      bash_completion.install "completions/kall.bash" => "kall"
+      zsh_completion.install "completions/_kall"
+      fish_completion.install "completions/kall.fish"
+    test: |
+      assert_match version.to_s, shell_output("#{bin}/kall --version")
+
+nfpms:
+  - package_name: kall
+    vendor: Kane Tran
+    homepage: "https://github.com/kanetran29/kall"
+    description: "Run commands across multiple projects in parallel"
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    contents:
+      - src: man/kall.1
+        dst: /usr/share/man/man1/kall.1
+      - src: completions/kall.bash
+        dst: /usr/share/bash-completion/completions/kall
+      - src: completions/_kall
+        dst: /usr/share/zsh/vendor-completions/_kall
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  github:
+    owner: kanetran29
+    name: kall
