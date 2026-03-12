@@ -26,16 +26,25 @@ func FindRoot() (string, error) {
 	}
 }
 
-// DiscoverRepos finds subdirectories containing a .git directory or file.
-func DiscoverRepos(root string) ([]string, error) {
+// DiscoverRepos finds subdirectories containing a .git directory or file,
+// excluding any names matching the exclude list.
+func DiscoverRepos(root string, exclude []string) ([]string, error) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return nil, err
 	}
 
+	excludeSet := make(map[string]bool)
+	for _, e := range exclude {
+		excludeSet[e] = true
+	}
+
 	var repos []string
 	for _, e := range entries {
 		if !e.IsDir() {
+			continue
+		}
+		if excludeSet[e.Name()] {
 			continue
 		}
 		gitPath := filepath.Join(root, e.Name(), ".git")

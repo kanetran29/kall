@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 func newRootCmd() *cobra.Command {
 	var verbose bool
-	var interactive bool
 
 	cmd := &cobra.Command{
 		Use:   "kall [command] [args...]",
@@ -25,20 +25,33 @@ Usage:
   kall alias <project> <name> <cmd>  → Set a command alias
   kall aliases                       → List all aliases
   kall <command> [args]              → Run across all projects
-  kall -i <command>                  → Run with interactive tab view
   kall -V <command>                  → Run with verbose output
   kall completion <shell>            → Generate shell completions
 
 Options:
-  -i, --interactive   Interactive tab view (← → to switch)
   -V, --verbose       Show resolved commands
   -h, --help          Show this help
   -v, --version       Show version
 
-Aliases map a name to different commands per project:
-  kall alias frontend start "yarn start"
-  kall alias backend start "flask run"
-  kall start   # runs the right command in each project`,
+Tab UI (TTY):
+  ← →  switch tabs    r  rerun     x  kill     q  quit
+  Piped output falls back to sequential plain text.
+
+Config (.kall):
+  [_settings]                        → Global settings
+    shell = /bin/zsh                   Default shell for commands
+    concurrency = 2                    Max parallel jobs
+    exclude = node_modules, dist       Hide from kall init
+
+  [*]                                → Global aliases (all projects)
+    test = npm test
+
+  [project]                          → Per-project config
+    label = FE                         Short name for tabs
+    dir = src/app                      Subdirectory to run in
+    shell = /bin/bash                  Shell override
+    env.PORT = 3000                    Environment variable
+    start = yarn start                 Command alias`,
 		Version:       version,
 		Args:          cobra.ArbitraryArgs,
 		SilenceUsage:  true,
@@ -62,8 +75,17 @@ Aliases map a name to different commands per project:
 				return fmt.Errorf("no projects in .kall config. Run 'kall init' first")
 			}
 
-			results := RunParallel(root, cfg, args)
-			RenderResults(results, verbose, interactive)
+			var results []Result
+
+			if term.IsTerminal(int(os.Stdout.Fd())) {
+				// TTY: live tab UI — shows tabs immediately, streams output in real-time
+				lives, doneCh := RunLive(root, cfg, args)
+				results = RenderLive(lives, doneCh, verbose)
+			} else {
+				// Piped: run all, then print sequentially
+				results = RunParallel(root, cfg, args)
+				RenderSequential(results, verbose)
+			}
 
 			for _, r := range results {
 				if r.ExitCode != 0 {
@@ -75,7 +97,6 @@ Aliases map a name to different commands per project:
 	}
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "V", false, "Show commands being executed")
-	cmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Interactive tab view (← → to switch)")
 
 	cmd.SetHelpTemplate(`{{.Long}}
 `)
@@ -108,7 +129,11 @@ func newInitCmd() *cobra.Command {
 			// Load existing config to preserve aliases
 			existing, _ := ParseConfig(configPath)
 
-			repos, err := DiscoverRepos(root)
+			var exclude []string
+			if existing != nil {
+				exclude = existing.Settings.Exclude
+			}
+			repos, err := DiscoverRepos(root, exclude)
 			if err != nil {
 				return err
 			}
@@ -136,14 +161,20 @@ func newInitCmd() *cobra.Command {
 				return nil
 			}
 
-			// Build new config, preserving aliases from old config
-			newCfg := &Config{}
+			// Build new config, preserving all settings from old config
+			newCfg := &Config{
+				GlobalAliases: make(map[string]string),
+			}
+			if existing != nil {
+				newCfg.Settings = existing.Settings
+				newCfg.GlobalAliases = existing.GlobalAliases
+			}
 			for _, name := range selected {
-				proj := Project{Name: name, Aliases: make(map[string]string)}
+				proj := Project{Name: name, Env: make(map[string]string), Aliases: make(map[string]string)}
 				if existing != nil {
 					for _, p := range existing.Projects {
 						if p.Name == name {
-							proj.Aliases = p.Aliases
+							proj = p // preserve everything
 							break
 						}
 					}
@@ -243,7 +274,7 @@ func newAliasesCmd() *cobra.Command {
 				return err
 			}
 
-			hasAliases := false
+			hasAliases := len(cfg.GlobalAliases) > 0
 			for _, p := range cfg.Projects {
 				if len(p.Aliases) > 0 {
 					hasAliases = true
@@ -257,6 +288,15 @@ func newAliasesCmd() *cobra.Command {
 			}
 
 			first := true
+
+			if len(cfg.GlobalAliases) > 0 {
+				fmt.Println("[*] (global)")
+				for _, k := range sortedKeys(cfg.GlobalAliases) {
+					fmt.Printf("  %s = %s\n", k, cfg.GlobalAliases[k])
+				}
+				first = false
+			}
+
 			for _, p := range cfg.Projects {
 				if len(p.Aliases) == 0 {
 					continue

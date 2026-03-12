@@ -3,14 +3,14 @@
 Run commands across multiple projects in parallel, with per-project aliases.
 
 ```
- ▸ frontend ✓ │ backend ✓ │ mobile ✗
+ ▸ FE ✓ │ BE ○
 ──────────────────────────────────────────────
  Compiled successfully.
 
- ← → switch · q quit
+ ← → switch · x kill · 1/2 done
 ```
 
-Output is shown in an interactive tab UI — use arrow keys to switch between projects.
+Output streams live into an interactive tab UI — use arrow keys to switch, `r` to rerun, `x` to kill.
 
 ## Install
 
@@ -41,6 +41,21 @@ kall ls               # run 'ls' in every project
 kall git status       # run any command across all projects
 ```
 
+## Tab UI
+
+When running in a terminal, kall shows an interactive tab view:
+
+| Key | Action |
+|-----|--------|
+| `← →` | Switch between project tabs |
+| `r` | Rerun the active tab's command |
+| `x` | Kill the active tab's running process |
+| `q` / Esc / Ctrl+C | Quit |
+
+Tabs appear immediately with **○** (running) and update to **✓**/**✗** as commands finish. Output streams in real-time.
+
+When piped (e.g. `kall git status | cat`), output falls back to plain sequential text.
+
 ## Aliases
 
 Different projects often need different commands for the same task. Aliases let you unify them:
@@ -66,18 +81,45 @@ kall -V start
 `kall init` creates a `.kall` file in the current directory. The format is INI-style:
 
 ```ini
+[_settings]
+shell = /bin/zsh                  # default shell for all commands
+concurrency = 4                   # max parallel jobs (piped mode)
+exclude = node_modules, dist      # hide from kall init
+
+[*]
+test = npm test                   # global alias — applies to all projects
+lint = npm run lint
+
 [frontend]
-start = yarn start
-test = yarn test
+label = FE                        # short name for tabs
+dir = src/app                     # subdirectory to run commands in
+shell = /bin/bash                 # per-project shell override
+env.PORT = 3000                   # environment variable
+env.HOST = localhost
+start = yarn start                # command alias
+test = yarn test                  # overrides [*] global alias
 
 [backend]
+label = BE
+env.FLASK_ENV = development
 start = flask run
-test = pytest
 ```
 
-- Section headers (`[name]`) are project directory names
-- Key-value pairs are command aliases
-- Lines starting with `#` are comments
+### Sections
+
+- **`[_settings]`** — Global kall settings (shell, concurrency, exclude)
+- **`[*]`** — Global aliases that apply to all projects (overridable per-project)
+- **`[name]`** — Project directory name, with aliases and per-project config
+
+### Per-project keys
+
+| Key | Example | Description |
+|-----|---------|-------------|
+| `label` | `FE` | Display name for tabs (defaults to directory name) |
+| `dir` | `src/app` | Subdirectory to run commands in |
+| `shell` | `/bin/bash` | Shell override for this project |
+| `env.KEY` | `env.PORT = 3000` | Environment variable |
+| anything else | `start = yarn start` | Command alias |
 
 kall finds `.kall` by walking up from the working directory (like `.git`), so you can run it from any subdirectory.
 
@@ -112,14 +154,6 @@ kall completion fish > ~/.config/fish/completions/kall.fish
 # PowerShell
 kall completion powershell | Out-File kall.ps1
 ```
-
-## How it works
-
-1. Commands run in parallel across all configured projects
-2. Results are displayed in an interactive tab UI — use **← →** to switch between projects
-3. Exit codes propagate: **✓** on success, **✗** on failure
-4. If a command name matches an alias, it's resolved per-project
-5. When piped (e.g. `kall git status | cat`), output falls back to plain sequential text
 
 ## Uninstall
 

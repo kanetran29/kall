@@ -15,7 +15,7 @@ func TestDiscoverRepos(t *testing.T) {
 	os.MkdirAll(filepath.Join(dir, "not-a-repo"), 0755)
 	os.WriteFile(filepath.Join(dir, "file.txt"), []byte("hi"), 0644)
 
-	repos, err := DiscoverRepos(dir)
+	repos, err := DiscoverRepos(dir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,13 +32,33 @@ func TestDiscoverRepos(t *testing.T) {
 func TestDiscoverReposEmpty(t *testing.T) {
 	dir := t.TempDir()
 
-	repos, err := DiscoverRepos(dir)
+	repos, err := DiscoverRepos(dir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if len(repos) != 0 {
 		t.Fatalf("expected 0 repos, got %d", len(repos))
+	}
+}
+
+func TestDiscoverReposExclude(t *testing.T) {
+	dir := t.TempDir()
+
+	os.MkdirAll(filepath.Join(dir, "project-a", ".git"), 0755)
+	os.MkdirAll(filepath.Join(dir, "project-b", ".git"), 0755)
+	os.MkdirAll(filepath.Join(dir, "project-c", ".git"), 0755)
+
+	repos, err := DiscoverRepos(dir, []string{"project-b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(repos) != 2 {
+		t.Fatalf("expected 2 repos, got %d: %v", len(repos), repos)
+	}
+	if repos[0] != "project-a" || repos[1] != "project-c" {
+		t.Errorf("unexpected repos: %v", repos)
 	}
 }
 

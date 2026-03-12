@@ -14,8 +14,11 @@ kall \- run commands across multiple projects in parallel
 .SH DESCRIPTION
 .B kall
 runs a command in parallel across multiple projects and displays the
-output in a stacked box TUI. It supports per-project command aliases,
-so the same command name can map to different commands in each project.
+output in an interactive tab UI. Tabs appear immediately with a running
+indicator and update as each command completes. When piped, output
+falls back to plain sequential text. It supports per-project command
+aliases, so the same command name can map to different commands in each
+project.
 .PP
 kall looks for a
 .B .kall
@@ -57,6 +60,9 @@ Any other argument is treated as a command to run in each project
 directory in parallel. If the command name matches a per-project alias,
 the alias is resolved. Extra arguments are appended.
 .SH OPTIONS
+.TP
+.BR \-V ", " \-\-verbose
+Show the resolved command being executed in each project.
 .TP
 .BR \-h ", " \-\-help
 Show usage information.
