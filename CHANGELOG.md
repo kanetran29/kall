@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.1.0 — 2026-03-12
+
+Live streaming tab UI with interactive controls and full config system.
+
+- Live streaming output — real-time logs in each tab, not just "Running..."
+- Kill (`x`) and rerun (`r`) keybindings per tab
+- Flicker-free TUI rendering (cursor-home + line-overwrite)
+- Full config system: `[_settings]`, `[*]` global aliases, per-project label/dir/shell/env
+- Concurrency limiting via `concurrency` setting
+- Exclude list for `kall init` via `exclude` setting
+- Tab UI is now the default for TTY (no `-i` flag needed)
+- Shell execution for aliases (supports env vars, pipes, shell syntax)
+- Strips `CLAUDECODE` env var from child processes
+- Process group kill on Unix for clean process tree teardown
+
 ## 2.0.0 — 2026-03-12
 
 Complete rewrite in Go for cross-platform support.
