@@ -1,6 +1,10 @@
-# kall
+<p align="center">
+  <img src="assets/kall.png" width="200" alt="kall">
+</p>
 
-Run commands across multiple projects in parallel, with per-project aliases.
+<h1 align="center">kall</h1>
+
+<p align="center">Run commands across multiple projects in parallel, with per-project aliases.</p>
 
 ```
  ▸ FE ✓ │ BE ○

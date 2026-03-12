@@ -10,6 +10,22 @@ import (
 	"golang.org/x/term"
 )
 
+func printBanner() {
+	green := "\033[32m"
+	bold := "\033[1m"
+	reset := "\033[0m"
+	fmt.Fprintf(os.Stderr, green+`
+       _V_        _V_
+      /   \      /   \
+     (     \    /     )
+      \ ●  (    )  ● /
+       \   (    )   /
+        )  (    )  (
+       / /  \  /  \ \
+      (_/    \/    \_)
+`+reset+bold+"        $_ KALL"+reset+" %s\n\n", version)
+}
+
 func newRootCmd() *cobra.Command {
 	var verbose bool
 
@@ -58,6 +74,7 @@ Config (.kall):
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
+				printBanner()
 				return cmd.Help()
 			}
 
