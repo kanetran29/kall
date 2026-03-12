@@ -1,0 +1,15 @@
+# Managed projects (separate repos)
+jaakkocom/
+jaakkocom-frontend/
+
+# Config (user-specific)
+.kall
+.gall
+
+# Old version
+gall.sh
+
+# System
+.DS_Store
+.claude/
+firebase-debug.log
