@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.1 — 2026-03-16
+
+Bug fixes for TUI responsiveness and argument handling.
+
+- Auto-exit TUI when all commands finish (fast commands like `git checkout` no longer appear stuck)
+- Print results sequentially after TUI exits so output persists on screen
+- Fix stale content showing between tabs when switching from longer to shorter output
+- Preserve `--` in commands (no longer stripped by flag parser)
+
 ## 2.1.0 — 2026-03-12
 
 Live streaming tab UI with interactive controls and full config system.

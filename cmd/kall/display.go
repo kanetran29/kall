@@ -152,6 +152,8 @@ func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool) []Result {
 			fmt.Fprintf(&b, " %s%sWaiting for output...%s\033[K\r\n", colorYellow, colorDim, colorReset)
 		}
 
+		b.WriteString("\033[J") // clear from cursor to end of screen (remove stale lines from previous tab)
+
 		// Help hint
 		doneCount := countDone()
 		parts := []string{"\u2190 \u2192 switch"}
@@ -167,8 +169,6 @@ func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool) []Result {
 		}
 		hint := strings.Join(parts, " \u00b7 ")
 		fmt.Fprintf(&b, "\r\n%s %s%s", colorDim, hint, colorReset)
-
-		b.WriteString("\033[J") // clear from cursor to end of screen (remove stale lines)
 
 		// Single write — no flicker
 		fmt.Print(b.String())
@@ -200,6 +200,9 @@ func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool) []Result {
 		select {
 		case <-doneCh:
 			draw()
+			if countDone() == total {
+				return liveToResults(lives)
+			}
 
 		case <-ticker.C:
 			if countDone() < total {

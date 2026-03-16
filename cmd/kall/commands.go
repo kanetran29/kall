@@ -97,6 +97,8 @@ Config (.kall):
 				// TTY: live tab UI — shows tabs immediately, streams output in real-time
 				lives, doneCh := RunLive(root, cfg, args)
 				results = RenderLive(lives, doneCh, verbose)
+				// Print results after TUI exits so output persists on screen
+				RenderSequential(results, verbose)
 			} else {
 				// Piped: run all, then print sequentially
 				results = RunParallel(root, cfg, args)
@@ -113,6 +115,7 @@ Config (.kall):
 	}
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "V", false, "Show commands being executed")
+	cmd.Flags().SetInterspersed(false) // stop flag parsing after first positional arg so -- is passed through
 
 	cmd.SetHelpTemplate(`{{.Long}}
 `)
