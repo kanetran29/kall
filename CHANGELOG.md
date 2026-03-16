@@ -1,9 +1,14 @@
 # Changelog
 
-## 2.1.1 — 2026-03-16
+## 2.2.0 — 2026-03-16
 
-Bug fixes for TUI responsiveness and argument handling.
+Refreshed tab UI with configurable accent color.
 
+- New tab bar style: bold name + colored `●` dot, no arrows or separators
+- Configurable accent color via `color` in `[_settings]` (red, green, yellow, blue, magenta, cyan, white — default: green)
+- Verbose command line (`-V`) uses accent color
+- Bottom hint bar with right-aligned done count
+- Sequential output uses matching dot + accent style
 - Auto-exit TUI when all commands finish (fast commands like `git checkout` no longer appear stuck)
 - Print results sequentially after TUI exits so output persists on screen
 - Fix stale content showing between tabs when switching from longer to shorter output

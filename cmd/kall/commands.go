@@ -92,17 +92,18 @@ Config (.kall):
 			}
 
 			var results []Result
+			accent := resolveAccent(cfg.Settings.Color)
 
 			if term.IsTerminal(int(os.Stdout.Fd())) {
 				// TTY: live tab UI — shows tabs immediately, streams output in real-time
 				lives, doneCh := RunLive(root, cfg, args)
-				results = RenderLive(lives, doneCh, verbose)
+				results = RenderLive(lives, doneCh, verbose, accent)
 				// Print results after TUI exits so output persists on screen
-				RenderSequential(results, verbose)
+				RenderSequential(results, verbose, accent)
 			} else {
 				// Piped: run all, then print sequentially
 				results = RunParallel(root, cfg, args)
-				RenderSequential(results, verbose)
+				RenderSequential(results, verbose, accent)
 			}
 
 			for _, r := range results {

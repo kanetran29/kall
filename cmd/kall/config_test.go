@@ -382,3 +382,70 @@ func TestConfigFullRoundTrip(t *testing.T) {
 		t.Errorf("alias: %q != %q", p.Aliases["build"], "go build")
 	}
 }
+
+func TestParseConfigColor(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".kall")
+
+	content := "[_settings]\ncolor = blue\n\n[frontend]\n"
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := ParseConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cfg.Settings.Color != "blue" {
+		t.Errorf("expected color 'blue', got '%s'", cfg.Settings.Color)
+	}
+}
+
+func TestResolveAccent(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected string
+	}{
+		{"red", "\033[31m"},
+		{"green", "\033[32m"},
+		{"blue", "\033[34m"},
+		{"cyan", "\033[36m"},
+		{"", "\033[32m"},       // default green
+		{"unknown", "\033[32m"}, // default green
+		{"GREEN", "\033[32m"},   // case insensitive
+	}
+
+	for _, tt := range tests {
+		got := resolveAccent(tt.name)
+		if got != tt.expected {
+			t.Errorf("resolveAccent(%q) = %q, want %q", tt.name, got, tt.expected)
+		}
+	}
+}
+
+func TestWriteConfigColor(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".kall")
+
+	cfg := &Config{
+		Settings:      Settings{Color: "magenta"},
+		GlobalAliases: make(map[string]string),
+		Projects: []Project{
+			{Name: "app", Env: make(map[string]string), Aliases: make(map[string]string)},
+		},
+	}
+
+	if err := WriteConfig(path, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(string(data), "color = magenta") {
+		t.Errorf("missing color in output:\n%s", string(data))
+	}
+}

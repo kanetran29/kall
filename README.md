@@ -5,7 +5,7 @@
 <p align="center">Run commands across multiple projects in parallel, with per-project aliases.</p>
 
 <p align="center">
-  <img src="assets/kall-tui.png" width="600" alt="kall tab UI">
+  <img src="assets/kall-demo.gif" width="600" alt="kall tab UI demo">
 </p>
 
 Output streams live into an interactive tab UI — use arrow keys to switch, `r` to rerun, `x` to kill.
@@ -50,7 +50,7 @@ When running in a terminal, kall shows an interactive tab view:
 | `x` | Kill the active tab's running process |
 | `q` / Esc / Ctrl+C | Quit |
 
-Tabs appear immediately with **○** (running) and update to **✓**/**✗** as commands finish. Output streams in real-time.
+Tabs appear immediately with a colored **●** dot — yellow while running, green on success, red on failure. Output streams in real-time.
 
 When piped (e.g. `kall git status | cat`), output falls back to plain sequential text.
 
@@ -83,6 +83,7 @@ kall -V start
 shell = /bin/zsh                  # default shell for all commands
 concurrency = 4                   # max parallel jobs (piped mode)
 exclude = node_modules, dist      # hide from kall init
+color = green                     # accent color (red, green, yellow, blue, magenta, cyan, white)
 
 [*]
 test = npm test                   # global alias — applies to all projects
@@ -105,7 +106,7 @@ start = flask run
 
 ### Sections
 
-- **`[_settings]`** — Global kall settings (shell, concurrency, exclude)
+- **`[_settings]`** — Global kall settings (shell, concurrency, exclude, color)
 - **`[*]`** — Global aliases that apply to all projects (overridable per-project)
 - **`[name]`** — Project directory name, with aliases and per-project config
 

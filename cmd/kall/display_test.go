@@ -13,7 +13,7 @@ func TestRenderResultsSuccess(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	renderToWriter(&buf, results, 50, false)
+	renderToWriter(&buf, results, 50, false, colorGreen)
 	out := buf.String()
 
 	if !strings.Contains(out, "frontend") {
@@ -22,8 +22,8 @@ func TestRenderResultsSuccess(t *testing.T) {
 	if !strings.Contains(out, "backend") {
 		t.Error("missing project name 'backend'")
 	}
-	if !strings.Contains(out, "\u2713") {
-		t.Error("missing success indicator")
+	if !strings.Contains(out, "\u25cf") {
+		t.Error("missing dot indicator")
 	}
 	if !strings.Contains(out, "Compiled successfully.") {
 		t.Error("missing frontend output")
@@ -43,11 +43,11 @@ func TestRenderResultsFailure(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	renderToWriter(&buf, results, 50, false)
+	renderToWriter(&buf, results, 50, false, colorGreen)
 	out := buf.String()
 
-	if !strings.Contains(out, "\u2717") {
-		t.Error("missing failure indicator")
+	if !strings.Contains(out, "\u25cf") {
+		t.Error("missing dot indicator")
 	}
 	if !strings.Contains(out, "Error: build failed") {
 		t.Error("missing error output")
@@ -56,7 +56,7 @@ func TestRenderResultsFailure(t *testing.T) {
 
 func TestRenderResultsEmpty(t *testing.T) {
 	var buf bytes.Buffer
-	renderToWriter(&buf, []Result{}, 80, false)
+	renderToWriter(&buf, []Result{}, 80, false, colorGreen)
 
 	if buf.Len() != 0 {
 		t.Errorf("expected no output for empty results, got %q", buf.String())
@@ -69,14 +69,14 @@ func TestRenderResultsEmptyOutput(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	renderToWriter(&buf, results, 50, false)
+	renderToWriter(&buf, results, 50, false, colorGreen)
 	out := buf.String()
 
 	if !strings.Contains(out, "quiet") {
 		t.Error("missing project name")
 	}
-	if !strings.Contains(out, "\u2713") {
-		t.Error("missing success indicator")
+	if !strings.Contains(out, "\u25cf") {
+		t.Error("missing dot indicator")
 	}
 }
 
@@ -86,7 +86,7 @@ func TestRenderResultsVerbose(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	renderToWriter(&buf, results, 50, true)
+	renderToWriter(&buf, results, 50, true, colorGreen)
 	out := buf.String()
 
 	if !strings.Contains(out, "$ yarn start") {
@@ -100,7 +100,7 @@ func TestRenderResultsNoVerbose(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	renderToWriter(&buf, results, 50, false)
+	renderToWriter(&buf, results, 50, false, colorGreen)
 	out := buf.String()
 
 	if strings.Contains(out, "$ yarn start") {
@@ -115,7 +115,7 @@ func TestRenderResultsSeparation(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	renderToWriter(&buf, results, 40, false)
+	renderToWriter(&buf, results, 40, false, colorGreen)
 	out := buf.String()
 
 	// Projects should be separated by a blank line

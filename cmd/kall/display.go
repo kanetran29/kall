@@ -12,9 +12,8 @@ import (
 )
 
 const (
-	colorDim    = "\033[2m"
-	colorCyan   = "\033[36m"
-	colorBold   = "\033[1m"
+	colorDim  = "\033[2m"
+	colorBold = "\033[1m"
 	colorReset  = "\033[0m"
 	colorGreen  = "\033[32m"
 	colorRed    = "\033[31m"
@@ -45,7 +44,7 @@ func termHeight() int {
 
 // RenderLive shows the tab UI immediately with live-streaming output.
 // Returns final results once every command has finished or the user quits.
-func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool) []Result {
+func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool, accent string) []Result {
 	fd := int(os.Stdin.Fd())
 	oldState, err := term.MakeRaw(fd)
 	if err != nil {
@@ -85,31 +84,27 @@ func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool) []Result {
 
 		// Tab bar
 		for i, lp := range lives {
-			var indicator string
-			var iColor string
+			var dotColor string
 			if !lp.Done {
-				indicator = "\u25cb" // ○ running
-				iColor = colorYellow
+				dotColor = colorYellow
 			} else if lp.ExitCode == 0 {
-				indicator = "\u2713" // ✓
-				iColor = colorGreen
+				dotColor = accent
 			} else {
-				indicator = "\u2717" // ✗
-				iColor = colorRed
+				dotColor = colorRed
 			}
 
 			if i == active {
-				fmt.Fprintf(&b, " %s\u25b8 %s%s %s%s%s",
-					colorBold+colorCyan, lp.Project, colorReset,
-					iColor, indicator, colorReset)
+				fmt.Fprintf(&b, " %s%s%s %s\u25cf%s",
+					colorBold, lp.Project, colorReset,
+					dotColor, colorReset)
 			} else {
-				fmt.Fprintf(&b, " %s%s %s%s%s",
-					colorDim, lp.Project,
-					iColor, indicator, colorReset)
+				fmt.Fprintf(&b, " %s%s%s %s\u25cf%s",
+					colorDim, lp.Project, colorReset,
+					dotColor, colorReset)
 			}
 
 			if i < total-1 {
-				fmt.Fprintf(&b, " %s\u2502%s", colorDim, colorReset)
+				b.WriteString("  ")
 			}
 		}
 		b.WriteString("\033[K\r\n") // clear rest of line, newline
@@ -121,7 +116,7 @@ func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool) []Result {
 		lp := lives[active]
 
 		if verbose && lp.Command != "" {
-			fmt.Fprintf(&b, " %s$ %s%s\033[K\r\n", colorDim, lp.Command, colorReset)
+			fmt.Fprintf(&b, " %s$ %s%s\033[K\r\n", accent, lp.Command, colorReset)
 		}
 
 		errColor := ""
@@ -154,21 +149,28 @@ func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool) []Result {
 
 		b.WriteString("\033[J") // clear from cursor to end of screen (remove stale lines from previous tab)
 
-		// Help hint
+		// Help hint — left keys, right-aligned status
 		doneCount := countDone()
-		parts := []string{"\u2190 \u2192 switch"}
+		var left []string
+		left = append(left, "\u2190 \u2192 switch")
 		if lp.IsDone() {
-			parts = append(parts, "r rerun")
+			left = append(left, "r rerun")
 		} else {
-			parts = append(parts, "x kill")
+			left = append(left, "x kill")
 		}
+		left = append(left, "q quit")
+		leftStr := strings.Join(left, "   ")
+
+		var right string
 		if doneCount < total {
-			parts = append(parts, fmt.Sprintf("%d/%d done", doneCount, total))
-		} else {
-			parts = append(parts, "q quit")
+			right = fmt.Sprintf("%d/%d done", doneCount, total)
 		}
-		hint := strings.Join(parts, " \u00b7 ")
-		fmt.Fprintf(&b, "\r\n%s %s%s", colorDim, hint, colorReset)
+
+		padding := width - len(stripAnsi(leftStr)) - len(right) - 2 // 2 for leading space + trailing space
+		if padding < 1 {
+			padding = 1
+		}
+		fmt.Fprintf(&b, "\r\n%s %s%s%s%s", colorDim, leftStr, strings.Repeat(" ", padding), right, colorReset)
 
 		// Single write — no flicker
 		fmt.Print(b.String())
@@ -259,39 +261,39 @@ func liveToResults(lives []*LiveProject) []Result {
 }
 
 // RenderSequential displays results as sequential output (for piped/non-TTY).
-func RenderSequential(results []Result, verbose bool) {
-	renderToWriter(os.Stdout, results, termWidth(), verbose)
+func RenderSequential(results []Result, verbose bool, accent string) {
+	renderToWriter(os.Stdout, results, termWidth(), verbose, accent)
 }
 
 // renderToWriter prints sequential output to a writer (for piped/non-TTY or tests).
-func renderToWriter(w io.Writer, results []Result, width int, verbose bool) {
+func renderToWriter(w io.Writer, results []Result, width int, verbose bool, accent string) {
 	for i, r := range results {
 		if i > 0 {
 			fmt.Fprintln(w)
 		}
 
-		indicator := "\u2713"
-		iColor := colorGreen
-		if r.ExitCode != 0 {
-			indicator = "\u2717"
-			iColor = colorRed
+		var dotColor string
+		if r.ExitCode == 0 {
+			dotColor = accent
+		} else {
+			dotColor = colorRed
 		}
 
-		prefixLen := len(r.Project) + 4
+		prefixLen := len(r.Project) + 5 // name + space + dot + space + space
 		ruleLen := width - prefixLen
 		if ruleLen < 2 {
 			ruleLen = 2
 		}
 		rule := strings.Repeat("\u2500", ruleLen)
 
-		fmt.Fprintf(w, " %s%s%s %s%s%s %s%s%s\n",
-			colorBold+colorCyan, r.Project, colorReset,
-			iColor, indicator, colorReset,
+		fmt.Fprintf(w, " %s%s%s %s\u25cf%s %s%s%s\n",
+			colorBold, r.Project, colorReset,
+			dotColor, colorReset,
 			colorDim, rule, colorReset,
 		)
 
 		if verbose && r.Command != "" {
-			fmt.Fprintf(w, " %s$ %s%s\n", colorDim, r.Command, colorReset)
+			fmt.Fprintf(w, " %s$ %s%s\n", accent, r.Command, colorReset)
 		}
 
 		errColor := ""

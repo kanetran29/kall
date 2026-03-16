@@ -15,6 +15,7 @@ type Settings struct {
 	Shell       string   // default shell for commands (e.g. /bin/zsh)
 	Concurrency int      // max parallel jobs (0 = unlimited)
 	Exclude     []string // patterns to exclude from kall init discovery
+	Color       string   // accent color name (red, green, yellow, blue, magenta, cyan, white)
 }
 
 // Project represents a project directory and its configuration.
@@ -127,6 +128,31 @@ func parseSettingsKV(s *Settings, key, val string) {
 				s.Exclude = append(s.Exclude, part)
 			}
 		}
+	case "color":
+		s.Color = strings.ToLower(val)
+	}
+}
+
+// resolveAccent returns the ANSI escape code for a color name.
+// Defaults to green if the name is empty or unrecognized.
+func resolveAccent(name string) string {
+	switch strings.ToLower(name) {
+	case "red":
+		return "\033[31m"
+	case "green":
+		return "\033[32m"
+	case "yellow":
+		return "\033[33m"
+	case "blue":
+		return "\033[34m"
+	case "magenta":
+		return "\033[35m"
+	case "cyan":
+		return "\033[36m"
+	case "white":
+		return "\033[37m"
+	default:
+		return "\033[32m"
 	}
 }
 
@@ -157,7 +183,7 @@ func WriteConfig(path string, cfg *Config) error {
 	needBlank := false
 
 	// Write [_settings] if any are set
-	if cfg.Settings.Shell != "" || cfg.Settings.Concurrency > 0 || len(cfg.Settings.Exclude) > 0 {
+	if cfg.Settings.Shell != "" || cfg.Settings.Concurrency > 0 || len(cfg.Settings.Exclude) > 0 || cfg.Settings.Color != "" {
 		fmt.Fprintln(f, "[_settings]")
 		if cfg.Settings.Shell != "" {
 			fmt.Fprintf(f, "shell = %s\n", cfg.Settings.Shell)
@@ -167,6 +193,9 @@ func WriteConfig(path string, cfg *Config) error {
 		}
 		if len(cfg.Settings.Exclude) > 0 {
 			fmt.Fprintf(f, "exclude = %s\n", strings.Join(cfg.Settings.Exclude, ", "))
+		}
+		if cfg.Settings.Color != "" {
+			fmt.Fprintf(f, "color = %s\n", cfg.Settings.Color)
 		}
 		needBlank = true
 	}
