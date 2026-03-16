@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Result holds the output and exit code from running a command in one project.
@@ -29,13 +30,15 @@ type LiveProject struct {
 	Shell    string
 	ExtraEnv []string // additional env vars from config
 
-	mu       sync.Mutex
-	buf      bytes.Buffer
-	Done     bool
-	ExitCode int
-	cmd      *exec.Cmd
-	killed   bool
-	gen      int
+	mu        sync.Mutex
+	buf       bytes.Buffer
+	Done      bool
+	ExitCode  int
+	cmd       *exec.Cmd
+	killed    bool
+	gen       int
+	startTime time.Time
+	endTime   time.Time
 }
 
 // Write implements io.Writer so exec.Cmd can stream stdout/stderr into it.
@@ -57,6 +60,19 @@ func (lp *LiveProject) IsDone() bool {
 	lp.mu.Lock()
 	defer lp.mu.Unlock()
 	return lp.Done
+}
+
+// Elapsed returns the duration the command has been running (or ran for).
+func (lp *LiveProject) Elapsed() time.Duration {
+	lp.mu.Lock()
+	defer lp.mu.Unlock()
+	if lp.startTime.IsZero() {
+		return 0
+	}
+	if lp.Done {
+		return lp.endTime.Sub(lp.startTime)
+	}
+	return time.Since(lp.startTime)
 }
 
 // Kill sends SIGKILL to the running process group. No-op if already done.
@@ -90,6 +106,8 @@ func (lp *LiveProject) launch(doneCh chan<- int, idx int) {
 	lp.ExitCode = 0
 	lp.killed = false
 	lp.cmd = nil
+	lp.startTime = time.Time{}
+	lp.endTime = time.Time{}
 	lp.mu.Unlock()
 
 	go func() {
@@ -101,6 +119,7 @@ func (lp *LiveProject) launch(doneCh chan<- int, idx int) {
 
 		lp.mu.Lock()
 		lp.cmd = cmd
+		lp.startTime = time.Now()
 		lp.mu.Unlock()
 
 		err := cmd.Run()
@@ -125,6 +144,7 @@ func (lp *LiveProject) launch(doneCh chan<- int, idx int) {
 		}
 		lp.ExitCode = exitCode
 		lp.Done = true
+		lp.endTime = time.Now()
 		lp.mu.Unlock()
 
 		doneCh <- idx

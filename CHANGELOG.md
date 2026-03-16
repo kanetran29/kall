@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.3.0 — 2026-03-16
+
+New TUI features: search, elapsed time, tab shortcuts, batch operations, and vim-style navigation.
+
+- Search within output: `/` to search, `n`/`N` to cycle matches, Esc to clear — per-tab state preserved
+- Elapsed time shown per tab (ticks live, freezes on completion)
+- Tab number shortcuts: `1`–`9` jump directly to tabs
+- Tab numbers displayed in tab bar (`1:project`, `2:other`, ...)
+- Left/Right arrows wrap around at edges
+- Batch operations: `R` reruns all done tabs, `X` kills all running tabs
+- `g` jumps to top of output, `G` jumps to bottom (follow mode)
+- Esc now clears active search instead of quitting (use `q` or Ctrl+C to quit)
+- Hint bar shows `/ search`, `R all`, `X all`, and match count when searching
+
 ## 2.2.0 — 2026-03-16
 
 Refreshed tab UI with configurable accent color.

@@ -45,12 +45,18 @@ When running in a terminal, kall shows an interactive tab view:
 
 | Key | Action |
 |-----|--------|
-| `← →` | Switch between project tabs |
+| `← →` | Switch between project tabs (wraps around) |
+| `1`–`9` | Jump directly to tab by number |
 | `r` | Rerun the active tab's command |
+| `R` | Rerun all finished tabs |
 | `x` | Kill the active tab's running process |
-| `q` / Esc / Ctrl+C | Quit |
+| `X` | Kill all running tabs |
+| `/` | Search within output (`n`/`N` to cycle matches, Esc to clear) |
+| `j`/`k` | Scroll down/up |
+| `g`/`G` | Jump to top/bottom of output |
+| `q` / Ctrl+C | Quit |
 
-Tabs appear immediately with a colored **●** dot — yellow while running, green on success, red on failure. Output streams in real-time.
+Tabs appear immediately with a colored **●** dot — yellow while running, green on success, red on failure. Output streams in real-time with elapsed time per tab.
 
 When piped (e.g. `kall git status | cat`), output falls back to plain sequential text.
 
