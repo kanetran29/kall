@@ -22,8 +22,55 @@ const (
 
 var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
+// ansiCSI matches any CSI sequence (color, cursor, erase, etc.). Keep SGR (ending 'm'); drop others.
+var ansiCSI = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`)
+
+// ansiOSC matches OSC sequences (e.g. terminal title) terminated by BEL or ST.
+var ansiOSC = regexp.MustCompile(`\x1b\][^\x07\x1b]*(\x07|\x1b\\)`)
+
 func stripAnsi(s string) string {
 	return ansiRe.ReplaceAllString(s, "")
+}
+
+// sanitizeOutput cleans child-process output for safe in-place TUI rendering.
+// Strips cursor-control / line-erase ANSI codes (keeps SGR colors) and collapses
+// \r overwrites within each line so progress bars don't hijack our frame.
+func sanitizeOutput(s string) string {
+	if s == "" {
+		return s
+	}
+	s = ansiOSC.ReplaceAllString(s, "")
+	s = ansiCSI.ReplaceAllStringFunc(s, func(m string) string {
+		if m[len(m)-1] == 'm' {
+			return m
+		}
+		return ""
+	})
+	if !strings.ContainsAny(s, "\r\b") {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = collapseCR(line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// collapseCR simulates terminal \r behavior within a single line: each \r
+// returns the cursor to col 0 and subsequent text overwrites. We keep the
+// final segment after the last \r (the surviving visible text).
+func collapseCR(line string) string {
+	if line == "" {
+		return line
+	}
+	if idx := strings.LastIndex(line, "\r"); idx >= 0 {
+		line = line[idx+1:]
+	}
+	// Strip leftover backspaces conservatively
+	for strings.Contains(line, "\b") {
+		line = strings.Replace(line, "\b", "", -1)
+	}
+	return line
 }
 
 func highlightMatches(line, query string) string {
@@ -289,7 +336,7 @@ func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool, accent stri
 			errColor = colorRed
 		}
 
-		output := strings.TrimRight(lp.Output(), "\n")
+		output := sanitizeOutput(strings.TrimRight(lp.Output(), "\n"))
 		if output != "" {
 			lines := strings.Split(output, "\n")
 			// Reserve lines for: header(1) + separator(0-1) + verbose(0-1) + hint(2)
@@ -327,7 +374,9 @@ func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool, accent stri
 
 		b.WriteString("\033[J") // clear from cursor to end of screen (remove stale lines from previous tab)
 
-		// Help hint — left keys, right-aligned status
+		// Help hint — left keys, right-aligned status.
+		// Anchor at absolute last row so a long output stream never scrolls the frame.
+		fmt.Fprintf(&b, "\033[%d;1H\033[K", height)
 		doneCount := countDone()
 
 		if searchMode {
@@ -337,7 +386,7 @@ func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool, accent stri
 			if pad < 0 {
 				pad = 0
 			}
-			fmt.Fprintf(&b, "\r\n%s%s%s%s", prompt, colorDim, strings.Repeat(" ", pad), colorReset)
+			fmt.Fprintf(&b, "%s%s%s%s", prompt, colorDim, strings.Repeat(" ", pad), colorReset)
 		} else {
 			var left []string
 			left = append(left, "\u2190 \u2192 switch")
@@ -380,7 +429,7 @@ func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool, accent stri
 			if padding < 1 {
 				padding = 1
 			}
-			fmt.Fprintf(&b, "\r\n%s %s%s%s%s", colorDim, leftStr, strings.Repeat(" ", padding), right, colorReset)
+			fmt.Fprintf(&b, "%s %s%s%s%s", colorDim, leftStr, strings.Repeat(" ", padding), right, colorReset)
 		}
 
 		// Single write — no flicker
@@ -389,21 +438,8 @@ func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool, accent stri
 
 	draw()
 
-	// Stdin reader goroutine
-	keyCh := make(chan []byte, 10)
-	go func() {
-		buf := make([]byte, 6)
-		for {
-			n, err := os.Stdin.Read(buf)
-			if err != nil {
-				close(keyCh)
-				return
-			}
-			b := make([]byte, n)
-			copy(b, buf[:n])
-			keyCh <- b
-		}
-	}()
+	// Shared stdin pump (single goroutine for process lifetime).
+	keyCh := stdinPump()
 
 	// Ticker for live output refresh
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -433,7 +469,7 @@ func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool, accent stri
 				switch {
 				case n == 1 && key[0] == '\r': // Enter — confirm search
 					searchQuery[active] = searchInput
-					output := strings.TrimRight(lives[active].Output(), "\n")
+					output := sanitizeOutput(strings.TrimRight(lives[active].Output(), "\n"))
 					if output != "" {
 						allLines := strings.Split(output, "\n")
 						matchLines[active] = rebuildMatches(allLines, searchInput)
@@ -480,7 +516,7 @@ func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool, accent stri
 			case n == 1 && key[0] == 'n': // next match
 				if len(matchLines[active]) > 0 {
 					matchIdx[active] = (matchIdx[active] + 1) % len(matchLines[active])
-					output := strings.TrimRight(lives[active].Output(), "\n")
+					output := sanitizeOutput(strings.TrimRight(lives[active].Output(), "\n"))
 					if output != "" {
 						allLines := strings.Split(output, "\n")
 						jumpToMatch(allLines, matchLines[active], matchIdx[active], scrollOffsets, active, termHeight(), expanded, verbose, lives[active].Command)
@@ -490,7 +526,7 @@ func RenderLive(lives []*LiveProject, doneCh chan int, verbose bool, accent stri
 			case n == 1 && key[0] == 'N': // previous match
 				if len(matchLines[active]) > 0 {
 					matchIdx[active] = (matchIdx[active] - 1 + len(matchLines[active])) % len(matchLines[active])
-					output := strings.TrimRight(lives[active].Output(), "\n")
+					output := sanitizeOutput(strings.TrimRight(lives[active].Output(), "\n"))
 					if output != "" {
 						allLines := strings.Split(output, "\n")
 						jumpToMatch(allLines, matchLines[active], matchIdx[active], scrollOffsets, active, termHeight(), expanded, verbose, lives[active].Command)
@@ -640,7 +676,7 @@ func renderToWriter(w io.Writer, results []Result, width int, verbose bool, acce
 			errColor = colorRed
 		}
 
-		output := strings.TrimRight(r.Output, "\n")
+		output := sanitizeOutput(strings.TrimRight(r.Output, "\n"))
 		if output != "" {
 			for _, line := range strings.Split(output, "\n") {
 				fmt.Fprintf(w, " %s%s%s\n", errColor, line, colorReset)

@@ -124,6 +124,36 @@ func TestRenderResultsSeparation(t *testing.T) {
 	}
 }
 
+func TestSanitizeOutput(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"plain", "hello world", "hello world"},
+		{"sgr preserved", "\033[31mred\033[0m", "\033[31mred\033[0m"},
+		{"erase line stripped", "before\033[Kafter", "beforeafter"},
+		{"erase whole line stripped", "x\033[2Ky", "xy"},
+		{"cursor up stripped", "a\033[Ab", "ab"},
+		{"cursor move stripped", "a\033[5;10Hb", "ab"},
+		{"osc title stripped", "\033]0;title\007hello", "hello"},
+		{"cr collapses to last segment", "first\rsecond", "second"},
+		{"webpack progress style", "10%\r50%\r100% done", "100% done"},
+		{"cr respected per line", "line1\rfix1\nline2\rfix2", "fix1\nfix2"},
+		{"backspace stripped", "foo\b\bbar", "foobar"},
+		{"empty unchanged", "", ""},
+		{"mixed sgr + cursor", "\033[32mok\033[K\033[0m", "\033[32mok\033[0m"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeOutput(tt.input)
+			if got != tt.expected {
+				t.Errorf("sanitizeOutput(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestStripAnsi(t *testing.T) {
 	tests := []struct {
 		input    string

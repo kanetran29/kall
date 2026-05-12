@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +11,71 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
+
+// shellCandidates collects autocompletable first-token names: built-ins,
+// subcommands, global aliases, and per-project aliases.
+func shellCandidates(root string) []string {
+	seen := map[string]bool{}
+	add := func(s string) {
+		if s == "" || seen[s] {
+			return
+		}
+		seen[s] = true
+	}
+
+	for _, s := range []string{"exit", "quit", "q", "clear", "cls", "help"} {
+		add(s)
+	}
+	tmp := newRootCmd()
+	for _, c := range tmp.Commands() {
+		add(c.Name())
+		for _, alias := range c.Aliases {
+			add(alias)
+		}
+	}
+	if root != "" {
+		if cfg, err := ParseConfig(filepath.Join(root, ".kall")); err == nil {
+			for k := range cfg.GlobalAliases {
+				add(k)
+			}
+			for _, p := range cfg.Projects {
+				for k := range p.Aliases {
+					add(k)
+				}
+			}
+		}
+	}
+
+	out := make([]string, 0, len(seen))
+	for k := range seen {
+		out = append(out, k)
+	}
+	// Sort deterministically for stable completion display.
+	for i := 1; i < len(out); i++ {
+		for j := i; j > 0 && out[j] < out[j-1]; j-- {
+			out[j], out[j-1] = out[j-1], out[j]
+		}
+	}
+	return out
+}
+
+// appendHistory adds a line to history, deduping consecutive repeats and
+// capping size.
+func appendHistory(h []string, line string) []string {
+	const maxHistory = 500
+	if len(h) > 0 && h[len(h)-1] == line {
+		return h
+	}
+	h = append(h, line)
+	if len(h) > maxHistory {
+		h = h[len(h)-maxHistory:]
+	}
+	return h
+}
+
+// inShell is true while the REPL loop is active. Used to suppress process exit
+// on non-zero command status so the shell can keep running.
+var inShell bool
 
 func printBanner() {
 	green := "\033[32m"
@@ -41,6 +108,7 @@ Usage:
   kall aliases                       → List all aliases
   kall <command> [args]              → Run across all projects
   kall -V <command>                  → Run with verbose output
+  kall shell                         → Interactive REPL (no retyping 'kall')
   kall completion <shell>            → Generate shell completions
 
 Options:
@@ -108,6 +176,9 @@ Config (.kall):
 
 			for _, r := range results {
 				if r.ExitCode != 0 {
+					if inShell {
+						return nil
+					}
 					os.Exit(1)
 				}
 			}
@@ -126,8 +197,102 @@ Config (.kall):
 	cmd.AddCommand(newAliasCmd())
 	cmd.AddCommand(newAliasesCmd())
 	cmd.AddCommand(newCompletionCmd())
+	cmd.AddCommand(newShellCmd())
 
 	return cmd
+}
+
+func newShellCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "shell",
+		Short: "Interactive REPL — run kall commands without retyping 'kall'",
+		Long: `kall shell — interactive REPL
+
+Reads commands line by line and dispatches each as if you typed 'kall <line>'.
+Useful when running many commands across the same project set.
+
+Built-ins:
+  exit, quit, q     Leave the shell
+  clear, cls        Clear the screen
+  help              Show kall help
+
+End with Ctrl+D (EOF) or Ctrl+C.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if inShell {
+				return errors.New("already in a kall shell")
+			}
+			return runShellLoop()
+		},
+	}
+}
+
+func runShellLoop() error {
+	inShell = true
+	defer func() { inShell = false }()
+
+	accent := "\033[32m"
+	bold := "\033[1m"
+	dim := "\033[2m"
+	red := "\033[31m"
+	reset := "\033[0m"
+
+	root, err := FindRoot()
+	rootLabel := "?"
+	if err == nil {
+		rootLabel = filepath.Base(root)
+	}
+
+	fmt.Printf("%s%skall shell%s %s(root: %s — type 'exit' or Ctrl+D to leave)%s\n",
+		bold, accent, reset, dim, rootLabel, reset)
+
+	editor := &lineEditor{
+		prompt:     fmt.Sprintf("%skall%s%s>%s ", accent, dim, reset, reset),
+		candidates: shellCandidates(root),
+	}
+
+	for {
+		line, err := editor.readLine()
+		if err == io.EOF {
+			return nil
+		}
+		if errors.Is(err, errInterrupted) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+
+		line = strings.TrimSpace(strings.TrimRight(line, "\r"))
+		if line == "" {
+			continue
+		}
+		editor.history = appendHistory(editor.history, line)
+
+		switch line {
+		case "exit", "quit", "q":
+			return nil
+		case "clear", "cls":
+			fmt.Print("\033[H\033[2J")
+			continue
+		}
+
+		args := strings.Fields(line)
+		if len(args) == 0 {
+			continue
+		}
+		if args[0] == "shell" {
+			fmt.Fprintf(os.Stderr, "%salready in shell%s\n", red, reset)
+			continue
+		}
+
+		sub := newRootCmd()
+		sub.SetArgs(args)
+		sub.SetOut(os.Stdout)
+		sub.SetErr(os.Stderr)
+		if err := sub.Execute(); err != nil {
+			fmt.Fprintf(os.Stderr, "%s%s%s\n", red, err.Error(), reset)
+		}
+	}
 }
 
 func newInitCmd() *cobra.Command {
